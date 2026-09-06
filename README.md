@@ -27,12 +27,12 @@ party.share(&cap); // make it a shared object
 
 ```toml
 [dependencies]
-miso_party = { git = "https://github.com/misonetwork/party.git", rev = "<commit-sha>" }
+miso_party = { git = "https://github.com/misofm/party.git", rev = "<commit-sha>" }
 ```
 
 Pin `rev` to the exact commit reviewed by your application. Party profile and
 presentation slices live in
-[misonetwork/party-extensions](https://github.com/misonetwork/party-extensions).
+[misofm/party-extensions](https://github.com/misofm/party-extensions).
 
 ## TypeScript SDK
 
