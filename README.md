@@ -37,7 +37,7 @@ presentation slices live in
 ## TypeScript SDK
 
 Party bindings, reads, and composable transaction builders are included in
-[`@misonetwork/sdk`](https://github.com/misonetwork/sdk) and are exposed through
+[`@misofm/protocol`](https://github.com/misofm/sdks) and are exposed through
 `client.miso.party`. This repository no longer publishes a separate TypeScript
 package.
 

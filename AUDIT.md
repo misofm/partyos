@@ -2,7 +2,7 @@
 
 **Revision:** working tree (source snapshot — no `.git` in repo) ·
 **Date:** 2026-08-23 · **Toolchain:** sui 1.77.2-51d177ad7d65 ·
-**Framework:** pinned rev `b9149cbf0b2cb9ae5ed830407a9b48c7ae3fd36c`
+**Framework:** pinned rev `2a0becb2fcc6989e492981104af67f62f2c9511a`
 (`Move.lock`); no other dependencies.
 
 Audit of `party.move` (566 LOC): the identity object every `party-*`
