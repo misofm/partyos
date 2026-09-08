@@ -1,6 +1,6 @@
 # Security Audit — `partyos`
 
-**Revision:** working tree (source snapshot — no `.git` in repo) ·
+**Revision:** commit `39f0ae5f2ce090bb4bfc4703d99a32810d20765d` (`misofm/partyos`, `main`) ·
 **Date:** 2026-08-23 · **Toolchain:** sui 1.77.2-51d177ad7d65 ·
 **Framework:** pinned rev `2a0becb2fcc6989e492981104af67f62f2c9511a`
 (`Move.lock`); no other dependencies.
