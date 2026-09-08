@@ -1,11 +1,11 @@
-# miso_party
+# partyos
 
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Move](https://img.shields.io/badge/Move-2024-black.svg)](https://docs.sui.io/concepts/sui-move-concepts)
 
 > On-chain party identity for [Sui](https://sui.io).
 
-`miso_party` provides a reusable identity primitive for protocols that need to
+`partyos` provides a reusable identity primitive for protocols that need to
 represent people, groups, and organizations:
 
 - **`Party`** — a named, capability-authorized identity that can represent an **individual** or a **group** of parties. Parties are extensible (other packages can attach data via dynamic fields) and own their lifecycle through a `PartyAdminCap`.
@@ -27,12 +27,12 @@ party.share(&cap); // make it a shared object
 
 ```toml
 [dependencies]
-miso_party = { git = "https://github.com/misofm/party.git", rev = "<commit-sha>" }
+partyos = { git = "https://github.com/misofm/partyos.git", rev = "<commit-sha>" }
 ```
 
 Pin `rev` to the exact commit reviewed by your application. Party profile and
 presentation slices live in
-[misofm/party-extensions](https://github.com/misofm/party-extensions).
+[misofm/partyos-extensions](https://github.com/misofm/partyos-extensions).
 
 ## TypeScript SDK
 

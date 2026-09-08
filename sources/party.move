@@ -10,7 +10,7 @@
 /// - Extensible metadata via dynamic fields
 /// - Capability-based authorization for modifications
 /// - Groups can contain multiple individual parties
-module miso_party::party;
+module partyos::party;
 
 use std::string::String;
 use sui::clock::Clock;

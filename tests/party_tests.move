@@ -1,8 +1,8 @@
 #[test_only]
-module miso_party::party_tests;
+module partyos::party_tests;
 
-use miso_party::party::{Self, Party, PartyAdminCap};
-use miso_party::test_helpers;
+use partyos::party::{Self, Party, PartyAdminCap};
+use partyos::test_helpers;
 use std::unit_test::{assert_eq, destroy};
 
 // Error codes from party.move

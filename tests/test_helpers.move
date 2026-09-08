@@ -1,7 +1,7 @@
 #[test_only]
-module miso_party::test_helpers;
+module partyos::test_helpers;
 
-use miso_party::party::{Self, Party, PartyAdminCap};
+use partyos::party::{Self, Party, PartyAdminCap};
 use std::string::String;
 use sui::clock;
 
