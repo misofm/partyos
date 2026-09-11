@@ -12,6 +12,7 @@
 /// - Groups can contain multiple individual parties
 module partyos::party;
 
+use std::option::{Self, Option};
 use std::string::String;
 use sui::clock::Clock;
 use sui::derived_object::claim;
@@ -103,77 +104,104 @@ public enum PartyKind has copy, drop, store {
 
 // === Events ===
 
-/// Emitted when a party is created (creation and `share` happen in the same
-/// transaction, so this is the indexer's discovery signal). The creator's
-/// address is deliberately NOT in the payload: Sui's event envelope already
-/// carries the transaction sender, and the party's controlling identity is
-/// the (transferable) `PartyAdminCap` holder, not the creation sender.
+/// Emitted when a party is created. The payload contains a complete snapshot
+/// of the party and its freshly-created admin capability.
 public struct PartyCreatedEvent has copy, drop {
-    /// ID of the newly created party.
     party_id: ID,
-    /// Name of the party.
+    admin_cap_id: ID,
     name: String,
-    /// Kind of the party.
-    kind: String,
-    /// Unix ms when the party was created.
+    /// Kind discriminant: 0 for an individual and 1 for a group.
+    kind: u8,
+    /// Group member IDs in `VecSet` insertion order, or an empty vector for an
+    /// individual.
+    member_ids: vector<ID>,
+    creator: address,
     created_at_ms: u64,
+    /// Epoch in which the party was created.
+    created_epoch: u64,
 }
 
-public struct PartyNameSetEvent has copy, drop {
-    /// ID of the party.
+/// Emitted after a party is shared, with a complete post-share snapshot.
+public struct PartySharedEvent has copy, drop {
     party_id: ID,
-    /// Name of the party.
+    admin_cap_id: ID,
+    name: String,
+    kind: u8,
+    member_ids: vector<ID>,
+    created_at_ms: u64,
+    is_shared: bool,
+}
+
+/// Emitted after the party name is changed.
+public struct PartyNameSetEvent has copy, drop {
+    party_id: ID,
+    admin_cap_id: ID,
+    old_name: String,
     name: String,
 }
 
-/// Emitted when a group invites an individual party to join.
-public struct PartyInvitedEvent has copy, drop {
-    /// ID of the group.
+/// Emitted after a group creates a pending invitation.
+public struct PartyGroupInviteCreatedEvent has copy, drop {
     group_id: ID,
-    /// ID of the invited member party.
     member_id: ID,
+    group_admin_cap_id: ID,
+    group_member_count: u64,
+    pending_invite: bool,
+    pending_membership: bool,
 }
 
-/// Emitted when an invited party accepts and joins the group.
-public struct PartyJoinedGroupEvent has copy, drop {
-    /// ID of the group.
+/// Emitted after an invited party accepts and joins a group.
+public struct PartyGroupMembershipAcceptedEvent has copy, drop {
     group_id: ID,
-    /// ID of the party that joined.
     member_id: ID,
+    member_admin_cap_id: ID,
+    group_member_count: u64,
+    pending_invite: bool,
+    pending_membership: bool,
+    group_contains_member: bool,
+    membership_present: bool,
+    since_epoch: u64,
+    accepted_by: address,
 }
 
-/// Emitted when an invited party declines a pending invite.
-public struct PartyInviteDeclinedEvent has copy, drop {
-    /// ID of the group.
+/// Emitted after an invited party declines a pending invitation.
+public struct PartyGroupInviteDeclinedEvent has copy, drop {
     group_id: ID,
-    /// ID of the party that declined.
     member_id: ID,
+    member_admin_cap_id: ID,
+    pending_invite: bool,
+    pending_membership: bool,
 }
 
-/// Emitted when a group's admin revokes a pending invite.
-public struct PartyInviteRevokedEvent has copy, drop {
-    /// ID of the group.
+/// Emitted after a group's admin revokes a pending invitation.
+public struct PartyGroupInviteRevokedEvent has copy, drop {
     group_id: ID,
-    /// ID of the party whose invite was revoked.
     member_id: ID,
+    group_admin_cap_id: ID,
+    pending_invite: bool,
+    pending_membership: bool,
 }
 
-/// Emitted when a party is removed from a group by the group's admin.
-public struct PartyRemovedFromGroupEvent has copy, drop {
-    /// ID of the group.
+/// Emitted after a party leaves a group using its own admin capability.
+public struct PartyGroupMembershipLeftEvent has copy, drop {
     group_id: ID,
-    /// ID of the party removed from the group.
     member_id: ID,
+    member_admin_cap_id: ID,
+    group_member_count: u64,
+    group_contains_member: bool,
+    membership_present: bool,
+    removed_since_epoch: Option<u64>,
 }
 
-/// Emitted when a party leaves a group of its own accord (authorized by the
-/// member's own admin cap). Distinct from `PartyRemovedFromGroupEvent` so
-/// indexers can tell departure from eviction.
-public struct PartyLeftGroupEvent has copy, drop {
-    /// ID of the group.
+/// Emitted after a group's admin removes a party from the group.
+public struct PartyGroupMembershipRemovedEvent has copy, drop {
     group_id: ID,
-    /// ID of the party that left the group.
     member_id: ID,
+    group_admin_cap_id: ID,
+    group_member_count: u64,
+    group_contains_member: bool,
+    membership_present: bool,
+    removed_since_epoch: Option<u64>,
 }
 
 // === Constants ===
@@ -217,6 +245,16 @@ const ENotGroupMember: u64 = 50;
 /// No pending invite exists for the party in this group.
 const ENoPendingInvite: u64 = 51;
 
+// Returns the compact kind discriminant and a copy of the group's member IDs
+// in their VecSet insertion order. This helper only reads party state so it can
+// be used for both creation and share snapshots.
+fun kind_and_member_ids(kind: &PartyKind): (u8, vector<ID>) {
+    match (kind) {
+        PartyKind::Individual => (0, vector[]),
+        PartyKind::Group(members) => (1, vec_set::into_keys(*members)),
+    }
+}
+
 // === Public Functions ===
 
 /// Creates a new party with the specified kind and name.
@@ -246,11 +284,16 @@ public fun new(
         party_id,
     };
 
+    let (kind, member_ids) = kind_and_member_ids(&party.kind);
     emit(PartyCreatedEvent {
         party_id: object::id(&party),
+        admin_cap_id: object::id(&party_admin_cap),
         name,
-        kind: party.kind.name(),
+        kind,
+        member_ids,
+        creator: ctx.sender(),
         created_at_ms,
+        created_epoch: ctx.epoch(),
     });
 
     (party, party_admin_cap)
@@ -260,7 +303,21 @@ public fun new(
 /// Requires the admin capability.
 public fun share(self: Party, cap: &PartyAdminCap) {
     self.authorize(cap);
+    let party_id = object::id(&self);
+    let admin_cap_id = object::id(cap);
+    let name = self.name;
+    let (kind, member_ids) = kind_and_member_ids(&self.kind);
+    let created_at_ms = self.created_at_ms;
     transfer::share_object(self);
+    emit(PartySharedEvent {
+        party_id,
+        admin_cap_id,
+        name,
+        kind,
+        member_ids,
+        created_at_ms,
+        is_shared: true,
+    });
 }
 
 /// Sets the human-readable name of the party.
@@ -269,10 +326,15 @@ public fun set_name(self: &mut Party, cap: &PartyAdminCap, name: String) {
     self.authorize(cap);
     assert!(!name.is_empty(), EEmptyString);
     assert!(name.length() <= MAX_NAME_LENGTH, EMaxNameLengthExceeded);
+    let old_name = self.name;
+    let party_id = object::id(self);
+    let admin_cap_id = object::id(cap);
     self.name = name;
 
     emit(PartyNameSetEvent {
-        party_id: object::id(self),
+        party_id,
+        admin_cap_id,
+        old_name,
         name,
     });
 }
@@ -303,7 +365,14 @@ public fun invite_party(
     df::add(&mut group.id, PendingInviteKey(member_id), true);
     df::add(&mut member.id, PendingMembershipKey(group_id), true);
 
-    emit(PartyInvitedEvent { group_id, member_id });
+    emit(PartyGroupInviteCreatedEvent {
+        group_id,
+        member_id,
+        group_admin_cap_id: object::id(group_cap),
+        group_member_count: group.group_members().length(),
+        pending_invite: df::exists(&group.id, PendingInviteKey(member_id)),
+        pending_membership: df::exists(&member.id, PendingMembershipKey(group_id)),
+    });
 }
 
 /// Accepts a pending invite, joining `member` to `group`. Requires the
@@ -335,9 +404,21 @@ public fun accept_invite(
         _ => abort ENotGroupKind,
     };
 
-    df::add(&mut member.id, MembershipKey(group_id), Membership { since_epoch: ctx.epoch() });
+    let since_epoch = ctx.epoch();
+    df::add(&mut member.id, MembershipKey(group_id), Membership { since_epoch });
 
-    emit(PartyJoinedGroupEvent { group_id, member_id });
+    emit(PartyGroupMembershipAcceptedEvent {
+        group_id,
+        member_id,
+        member_admin_cap_id: object::id(member_cap),
+        group_member_count: group.group_members().length(),
+        pending_invite: df::exists(&group.id, PendingInviteKey(member_id)),
+        pending_membership: df::exists(&member.id, PendingMembershipKey(group_id)),
+        group_contains_member: group.group_members().contains(&member_id),
+        membership_present: df::exists(&member.id, MembershipKey(group_id)),
+        since_epoch,
+        accepted_by: ctx.sender(),
+    });
 }
 
 /// Declines a pending invite, authorized by the invited party's own admin cap.
@@ -355,7 +436,13 @@ public fun decline_invite(
     let _: bool = df::remove(&mut group.id, PendingInviteKey(member_id));
     let _: bool = df::remove(&mut member.id, PendingMembershipKey(group_id));
 
-    emit(PartyInviteDeclinedEvent { group_id, member_id });
+    emit(PartyGroupInviteDeclinedEvent {
+        group_id,
+        member_id,
+        member_admin_cap_id: object::id(member_cap),
+        pending_invite: df::exists(&group.id, PendingInviteKey(member_id)),
+        pending_membership: df::exists(&member.id, PendingMembershipKey(group_id)),
+    });
 }
 
 /// Revokes a pending invite, authorized by the group's admin cap. Clears the
@@ -373,7 +460,13 @@ public fun revoke_invite(
     let _: bool = df::remove(&mut group.id, PendingInviteKey(member_id));
     let _: bool = df::remove(&mut member.id, PendingMembershipKey(group_id));
 
-    emit(PartyInviteRevokedEvent { group_id, member_id });
+    emit(PartyGroupInviteRevokedEvent {
+        group_id,
+        member_id,
+        group_admin_cap_id: object::id(group_cap),
+        pending_invite: df::exists(&group.id, PendingInviteKey(member_id)),
+        pending_membership: df::exists(&member.id, PendingMembershipKey(group_id)),
+    });
 }
 
 /// Removes the caller's party from a group, authorized by the *member's* own
@@ -384,9 +477,17 @@ public fun leave(group: &mut Party, member: &mut Party, member_cap: &PartyAdminC
     let member_id = object::id(member);
     let group_id = object::id(group);
 
-    remove_membership(group, member);
+    let removed_since_epoch = remove_membership(group, member);
 
-    emit(PartyLeftGroupEvent { group_id, member_id });
+    emit(PartyGroupMembershipLeftEvent {
+        group_id,
+        member_id,
+        member_admin_cap_id: object::id(member_cap),
+        group_member_count: group.group_members().length(),
+        group_contains_member: group.group_members().contains(&member_id),
+        membership_present: df::exists(&member.id, MembershipKey(group_id)),
+        removed_since_epoch,
+    });
 }
 
 /// Removes (evicts) a member from a group, authorized by the *group's* admin
@@ -399,14 +500,22 @@ public fun remove_member(group: &mut Party, group_cap: &PartyAdminCap, member: &
     let member_id = object::id(member);
     let group_id = object::id(group);
 
-    remove_membership(group, member);
+    let removed_since_epoch = remove_membership(group, member);
 
-    emit(PartyRemovedFromGroupEvent { group_id, member_id });
+    emit(PartyGroupMembershipRemovedEvent {
+        group_id,
+        member_id,
+        group_admin_cap_id: object::id(group_cap),
+        group_member_count: group.group_members().length(),
+        group_contains_member: group.group_members().contains(&member_id),
+        membership_present: df::exists(&member.id, MembershipKey(group_id)),
+        removed_since_epoch,
+    });
 }
 
 /// Removes a membership from both sides: the group's member set and the
 /// member's `MembershipKey` record. Aborts if the party is not a member.
-fun remove_membership(group: &mut Party, member: &mut Party) {
+fun remove_membership(group: &mut Party, member: &mut Party): Option<u64> {
     let group_id = object::id(group);
     let member_id = object::id(member);
 
@@ -419,8 +528,11 @@ fun remove_membership(group: &mut Party, member: &mut Party) {
     };
 
     if (df::exists(&member.id, MembershipKey(group_id))) {
-        let Membership { .. } = df::remove(&mut member.id, MembershipKey(group_id));
-    };
+        let Membership { since_epoch } = df::remove(&mut member.id, MembershipKey(group_id));
+        option::some(since_epoch)
+    } else {
+        option::none()
+    }
 }
 
 /// Creates a new individual party kind.

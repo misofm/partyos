@@ -25,6 +25,8 @@ fun share_makes_party_publicly_readable() {
     let (p, cap) = test_helpers::individual(scenario.ctx());
     assert_eq!(cap.party_id(), object::id(&p));
     p.share(&cap);
+    assert_eq!(sui::event::events_by_type<party::PartyCreatedEvent>().length(), 1);
+    assert_eq!(sui::event::events_by_type<party::PartySharedEvent>().length(), 1);
 
     scenario.next_tx(READER);
     let p = scenario.take_shared<Party>();
@@ -41,11 +43,13 @@ fun set_name_works_on_shared_party() {
     let mut scenario = test_scenario::begin(OWNER);
     let (p, cap) = test_helpers::individual(scenario.ctx());
     p.share(&cap);
+    assert_eq!(sui::event::events_by_type<party::PartySharedEvent>().length(), 1);
 
     scenario.next_tx(OWNER);
     let mut p = scenario.take_shared<Party>();
     p.set_name(&cap, b"New Stage Name".to_string());
     assert_eq!(p.name(), b"New Stage Name".to_string());
+    assert_eq!(sui::event::events_by_type<party::PartyNameSetEvent>().length(), 1);
     test_scenario::return_shared(p);
 
     destroy(cap);
@@ -65,6 +69,10 @@ fun uid_mut_attaches_dynamic_fields_on_shared_party() {
     dynamic_field::add(p.uid_mut(&cap), b"profile", 42u64);
     assert!(dynamic_field::exists(p.uid(), b"profile"));
     assert_eq!(*dynamic_field::borrow<vector<u8>, u64>(p.uid(), b"profile"), 42);
+    // Dynamic-field attachment is a read/write extension operation and emits
+    // no Party lifecycle event in this transaction.
+    assert_eq!(sui::event::events_by_type<party::PartySharedEvent>().length(), 0);
+    assert_eq!(sui::event::events_by_type<party::PartyNameSetEvent>().length(), 0);
     test_scenario::return_shared(p);
 
     destroy(cap);
@@ -91,6 +99,8 @@ fun member_joins_and_leaves_shared_group() {
     group.accept_invite(&mut member, &member_cap, scenario.ctx());
     assert_eq!(group.group_members().length(), 1);
     assert!(member.is_member(group_id));
+    assert_eq!(sui::event::events_by_type<party::PartyGroupInviteCreatedEvent>().length(), 1);
+    assert_eq!(sui::event::events_by_type<party::PartyGroupMembershipAcceptedEvent>().length(), 1);
     test_scenario::return_shared(group);
     test_scenario::return_shared(member);
 
@@ -101,6 +111,7 @@ fun member_joins_and_leaves_shared_group() {
     group.leave(&mut member, &member_cap);
     assert!(!group.group_members().contains(&member_id));
     assert!(!member.is_member(group_id));
+    assert_eq!(sui::event::events_by_type<party::PartyGroupMembershipLeftEvent>().length(), 1);
     test_scenario::return_shared(group);
     test_scenario::return_shared(member);
 
