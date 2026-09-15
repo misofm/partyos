@@ -247,8 +247,20 @@ fun test_set_name() {
     let (mut party, cap) = test_helpers::individual(ctx);
     party.set_name(&cap, b"New Name".to_string());
     party.set_name(&cap, b"New Name".to_string());
-    assert_eq!(party.name(), b"New Name".to_string());
+    party.set_name(&cap, b"Final Name".to_string());
+    assert_eq!(party.name(), b"Final Name".to_string());
     assert_eq!(sui::event::events_by_type<party::PartyNameSetEvent>().length(), 2);
+    destroy(party);
+    destroy(cap);
+}
+
+#[test]
+fun equal_name_write_preserves_state_without_event() {
+    let ctx = &mut tx_context::dummy();
+    let (mut party, cap) = test_helpers::individual(ctx);
+    party.set_name(&cap, b"Test Artist".to_string());
+    assert_eq!(party.name(), b"Test Artist".to_string());
+    assert_eq!(sui::event::events_by_type<party::PartyNameSetEvent>().length(), 0);
     destroy(party);
     destroy(cap);
 }
@@ -394,6 +406,21 @@ fun test_unauthorized_cap() {
 
     // Try to use party2's cap on party1.
     party1.set_name(&cap2, b"Hacked".to_string());
+
+    destroy(party1);
+    destroy(cap1);
+    destroy(party2);
+    destroy(cap2);
+}
+
+#[test, expected_failure(abort_code = EUnauthorized, location = party)]
+fun test_unauthorized_equal_name_write() {
+    let ctx = &mut tx_context::dummy();
+    let (mut party1, cap1) = test_helpers::individual(ctx);
+    let (party2, cap2) = test_helpers::individual(ctx);
+
+    // Authorization remains mandatory even when the requested name is equal.
+    party1.set_name(&cap2, b"Test Artist".to_string());
 
     destroy(party1);
     destroy(cap1);
