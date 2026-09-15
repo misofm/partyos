@@ -104,8 +104,8 @@ public enum PartyKind has copy, drop, store {
 
 // === Events ===
 
-/// Emitted when a party is created. The payload contains a complete snapshot
-/// of the party and its freshly-created admin capability.
+/// Emitted once when the newly created party is shared. The payload contains
+/// its final same-transaction state and the original creation provenance.
 public struct PartyCreatedEvent has copy, drop {
     party_id: ID,
     admin_cap_id: ID,
@@ -119,17 +119,6 @@ public struct PartyCreatedEvent has copy, drop {
     created_at_ms: u64,
     /// Epoch in which the party was created.
     created_epoch: u64,
-}
-
-/// Emitted after a party is shared, with a complete post-share snapshot.
-public struct PartySharedEvent has copy, drop {
-    party_id: ID,
-    admin_cap_id: ID,
-    name: String,
-    kind: u8,
-    member_ids: vector<ID>,
-    created_at_ms: u64,
-    is_shared: bool,
 }
 
 /// Emitted after the party name is changed.
@@ -247,7 +236,7 @@ const ENoPendingInvite: u64 = 51;
 
 // Returns the compact kind discriminant and a copy of the group's member IDs
 // in their VecSet insertion order. This helper only reads party state so it can
-// be used for both creation and share snapshots.
+// be used for the creation snapshot emitted when a party is shared.
 fun kind_and_member_ids(kind: &PartyKind): (u8, vector<ID>) {
     match (kind) {
         PartyKind::Individual => (0, vector[]),
@@ -259,7 +248,7 @@ fun kind_and_member_ids(kind: &PartyKind): (u8, vector<ID>) {
 
 /// Creates a new party with the specified kind and name.
 /// Returns the admin capability for managing the party.
-/// The party is shared and starts in the Created state.
+/// The returned key-only party must be shared before the transaction completes.
 public fun new(
     kind: PartyKind,
     name: String,
@@ -284,24 +273,14 @@ public fun new(
         party_id,
     };
 
-    let (kind, member_ids) = kind_and_member_ids(&party.kind);
-    emit(PartyCreatedEvent {
-        party_id: object::id(&party),
-        admin_cap_id: object::id(&party_admin_cap),
-        name,
-        kind,
-        member_ids,
-        creator: ctx.sender(),
-        created_at_ms,
-        created_epoch: ctx.epoch(),
-    });
-
     (party, party_admin_cap)
 }
 
 /// Shares the party object, making it publicly accessible.
-/// Requires the admin capability.
-public fun share(self: Party, cap: &PartyAdminCap) {
+/// Requires the admin capability. The creation snapshot is emitted from the
+/// final pre-share state. Creation and sharing must finish in one transaction,
+/// so `ctx` retains the original creator and creation epoch.
+public fun share(self: Party, cap: &PartyAdminCap, ctx: &TxContext) {
     self.authorize(cap);
     let party_id = object::id(&self);
     let admin_cap_id = object::id(cap);
@@ -309,14 +288,15 @@ public fun share(self: Party, cap: &PartyAdminCap) {
     let (kind, member_ids) = kind_and_member_ids(&self.kind);
     let created_at_ms = self.created_at_ms;
     transfer::share_object(self);
-    emit(PartySharedEvent {
+    emit(PartyCreatedEvent {
         party_id,
         admin_cap_id,
         name,
         kind,
         member_ids,
+        creator: ctx.sender(),
         created_at_ms,
-        is_shared: true,
+        created_epoch: ctx.epoch(),
     });
 }
 
@@ -650,6 +630,25 @@ public fun assert_is_group_kind(self: &Party) {
 }
 
 // === Test Only ===
+
+/// Extracts a creation event for assertions without exposing event fields in
+/// the production API.
+#[test_only]
+public fun created_event_fields(
+    event: PartyCreatedEvent,
+): (ID, ID, String, u8, vector<ID>, address, u64, u64) {
+    let PartyCreatedEvent {
+        party_id,
+        admin_cap_id,
+        name,
+        kind,
+        member_ids,
+        creator,
+        created_at_ms,
+        created_epoch,
+    } = event;
+    (party_id, admin_cap_id, name, kind, member_ids, creator, created_at_ms, created_epoch)
+}
 
 #[test_only]
 public fun new_group_with_n_members_for_testing(
