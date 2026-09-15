@@ -321,22 +321,26 @@ public fun share(self: Party, cap: &PartyAdminCap) {
 }
 
 /// Sets the human-readable name of the party.
-/// Requires the admin capability.
+/// Requires the admin capability. Equal-value writes retain their validation,
+/// authorization, and state assignment but do not emit a change event.
 public fun set_name(self: &mut Party, cap: &PartyAdminCap, name: String) {
     self.authorize(cap);
     assert!(!name.is_empty(), EEmptyString);
     assert!(name.length() <= MAX_NAME_LENGTH, EMaxNameLengthExceeded);
+    let name_changed = self.name != name;
     let old_name = self.name;
     let party_id = object::id(self);
     let admin_cap_id = object::id(cap);
     self.name = name;
 
-    emit(PartyNameSetEvent {
-        party_id,
-        admin_cap_id,
-        old_name,
-        name,
-    });
+    if (name_changed) {
+        emit(PartyNameSetEvent {
+            party_id,
+            admin_cap_id,
+            old_name,
+            name,
+        });
+    }
 }
 
 /// Invites an individual party to join a group. Requires the group's admin
