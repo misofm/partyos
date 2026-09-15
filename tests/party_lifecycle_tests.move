@@ -47,7 +47,7 @@ fun share_makes_party_publicly_readable() {
         event_admin_cap_id,
         event_name,
         event_kind,
-        event_member_ids,
+        event_member_count,
         event_creator,
         event_created_at_ms,
         event_created_epoch,
@@ -56,7 +56,7 @@ fun share_makes_party_publicly_readable() {
     assert_eq!(event_admin_cap_id, group_cap_id);
     assert_eq!(event_name, b"Final Group".to_string());
     assert_eq!(event_kind, 1);
-    assert_eq!(event_member_ids, vector[member_id]);
+    assert_eq!(event_member_count, 1);
     assert_eq!(event_creator, OWNER);
     assert_eq!(event_created_at_ms, created_at_ms);
     assert_eq!(event_created_epoch, created_epoch);

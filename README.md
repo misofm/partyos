@@ -56,3 +56,6 @@ Issues and pull requests are welcome. By contributing you agree that your contri
 ## License
 
 [Apache 2.0](LICENSE) © Miso Labs, Inc.
+
+Creation events include the member count rather than copying up to 200 member IDs.
+Individual membership events retain their identities; read the Party for its current full membership.
