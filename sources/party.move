@@ -112,9 +112,8 @@ public struct PartyCreatedEvent has copy, drop {
     name: String,
     /// Kind discriminant: 0 for an individual and 1 for a group.
     kind: u8,
-    /// Group member IDs in `VecSet` insertion order, or an empty vector for an
-    /// individual.
-    member_ids: vector<ID>,
+    /// Number of group members, or zero for an individual.
+    member_count: u64,
     creator: address,
     created_at_ms: u64,
     /// Epoch in which the party was created.
@@ -234,13 +233,13 @@ const ENotGroupMember: u64 = 50;
 /// No pending invite exists for the party in this group.
 const ENoPendingInvite: u64 = 51;
 
-// Returns the compact kind discriminant and a copy of the group's member IDs
-// in their VecSet insertion order. This helper only reads party state so it can
+// Returns the compact kind discriminant and current member count.
+// This helper only reads party state so it can
 // be used for the creation snapshot emitted when a party is shared.
-fun kind_and_member_ids(kind: &PartyKind): (u8, vector<ID>) {
+fun kind_and_member_count(kind: &PartyKind): (u8, u64) {
     match (kind) {
-        PartyKind::Individual => (0, vector[]),
-        PartyKind::Group(members) => (1, vec_set::into_keys(*members)),
+        PartyKind::Individual => (0, 0),
+        PartyKind::Group(members) => (1, members.length()),
     }
 }
 
@@ -285,7 +284,7 @@ public fun share(self: Party, cap: &PartyAdminCap, ctx: &TxContext) {
     let party_id = object::id(&self);
     let admin_cap_id = object::id(cap);
     let name = self.name;
-    let (kind, member_ids) = kind_and_member_ids(&self.kind);
+    let (kind, member_count) = kind_and_member_count(&self.kind);
     let created_at_ms = self.created_at_ms;
     transfer::share_object(self);
     emit(PartyCreatedEvent {
@@ -293,7 +292,7 @@ public fun share(self: Party, cap: &PartyAdminCap, ctx: &TxContext) {
         admin_cap_id,
         name,
         kind,
-        member_ids,
+        member_count,
         creator: ctx.sender(),
         created_at_ms,
         created_epoch: ctx.epoch(),
@@ -636,18 +635,18 @@ public fun assert_is_group_kind(self: &Party) {
 #[test_only]
 public fun created_event_fields(
     event: PartyCreatedEvent,
-): (ID, ID, String, u8, vector<ID>, address, u64, u64) {
+): (ID, ID, String, u8, u64, address, u64, u64) {
     let PartyCreatedEvent {
         party_id,
         admin_cap_id,
         name,
         kind,
-        member_ids,
+        member_count,
         creator,
         created_at_ms,
         created_epoch,
     } = event;
-    (party_id, admin_cap_id, name, kind, member_ids, creator, created_at_ms, created_epoch)
+    (party_id, admin_cap_id, name, kind, member_count, creator, created_at_ms, created_epoch)
 }
 
 #[test_only]
