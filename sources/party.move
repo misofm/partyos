@@ -112,8 +112,7 @@ public struct PartyCreatedEvent has copy, drop {
     name: String,
     /// Kind discriminant: 0 for an individual and 1 for a group.
     kind: u8,
-    /// Group member IDs in `VecSet` insertion order, or an empty vector for an
-    /// individual.
+    /// Number of group members, or zero for an individual.
     member_count: u64,
     creator: address,
     created_at_ms: u64,
