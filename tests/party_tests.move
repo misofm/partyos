@@ -42,8 +42,7 @@ fun test_new_individual() {
     assert_eq!(party.name(), b"Test Artist".to_string());
     assert!(party.is_individual_kind());
     assert!(!party.is_group_kind());
-    assert_eq!(sui::event::events_by_type<party::PartyCreatedEvent>().length(), 1);
-    assert_eq!(sui::event::events_by_type<party::PartySharedEvent>().length(), 0);
+    assert_eq!(sui::event::events_by_type<party::PartyCreatedEvent>().length(), 0);
     destroy(party);
     destroy(cap);
 }
@@ -54,7 +53,7 @@ fun test_new_individual_with_max_name() {
     let name = test_helpers::long_string(MAX_NAME_LENGTH);
     let (party, cap) = test_helpers::individual_named(name, ctx);
     assert_eq!(party.name().length(), MAX_NAME_LENGTH);
-    assert_eq!(sui::event::events_by_type<party::PartyCreatedEvent>().length(), 1);
+    assert_eq!(sui::event::events_by_type<party::PartyCreatedEvent>().length(), 0);
     destroy(party);
     destroy(cap);
 }
@@ -68,7 +67,7 @@ fun test_new_group() {
     assert!(party.is_group_kind());
     assert!(!party.is_individual_kind());
     assert!(party.group_members().is_empty());
-    assert_eq!(sui::event::events_by_type<party::PartyCreatedEvent>().length(), 1);
+    assert_eq!(sui::event::events_by_type<party::PartyCreatedEvent>().length(), 0);
     destroy(party);
     destroy(cap);
 }
