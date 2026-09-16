@@ -19,7 +19,7 @@ let (party, cap) = party::new(party::new_individual_kind(), b"Ada".to_string(), 
 party.share(&cap, ctx); // make it a shared object
 ```
 
-- Creation and sharing complete in one transaction. `new()` is silent; `share()` emits one `PartyCreatedEvent` with the final name, kind and members, plus the original creation and capability details.
+- Creation and sharing complete in one transaction. `new()` is silent; `share()` emits one `PartyCreatedEvent` with the final name, kind and member count, plus the original creation and capability details.
 - Individual or group (`new_individual_kind()` / `new_group_kind()`); groups hold member party IDs.
 - All mutations, including naming and consent-based group membership, require the appropriate `PartyAdminCap`.
 - Extensible: holders of the cap can reach the party's `&mut UID` (`uid_mut`) to attach domain data.
